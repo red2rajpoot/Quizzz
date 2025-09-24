@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Exam</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; box-sizing: border-box; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); padding: 20px; box-sizing: border-box; }
+        h1, h2 { text-align: center; color: #333; }
+        .login-screen { text-align: center; }
+        input[type="text"], input[type="tel"] { width: 95%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        button { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; color: white; transition: background-color 0.3s ease; }
+        .btn-login { background-color: #007bff; }
+        .btn-login:hover { background-color: #0056b3; }
+        .exam-screen, .result-screen { display: none; }
+        .timer { font-size: 22px; font-weight: bold; color: #dc3545; text-align: center; margin-bottom: 20px; }
+        .question-card { background-color: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 15px; text-align: left; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1); }
+        .question-card p { font-size: 18px; font-weight: bold; color: #444; margin: 0 0 15px 0; }
+        .options-container label { display: block; background-color: #fff; padding: 12px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #e9ecef; cursor: pointer; transition: background-color 0.2s ease; }
+        .options-container label:hover { background-color: #f1f1f1; }
+        input[type="radio"] { margin-right: 10px; }
+        .navigation-buttons { display: flex; justify-content: space-between; gap: 10px; }
+        .navigation-buttons button { flex: 1; padding: 12px; font-size: 16px; }
+        .btn-next, .btn-skip { background-color: #28a745; }
+        .btn-next:hover, .btn-skip:hover { background-color: #218838; }
+        .btn-submit { background-color: #dc3545; }
+        .btn-submit:hover { background-color: #c82333; }
+        .btn-check-answers { background-color: #6c757d; }
+        .btn-check-answers:hover { background-color: #5a6268; }
+        .result-summary { text-align: left; line-height: 1.6; font-size: 16px; }
+        .answer-key-container { display: none; margin-top: 20px; border-radius: 10px; background-color: #f8f9fa; padding: 15px; text-align: left; }
+        .question-key { border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px; }
+        .correct { color: #007bff; font-weight: bold; }
+        .incorrect { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-screen" id="loginScreen">
+            <h2>Exam Login</h2>
+            <input type="text" id="nameInput" placeholder="Enter Your Name" required>
+            <input type="tel" id="mobileInput" placeholder="Enter Your Mobile Number" pattern="[0-9]{10}" required>
+            <button class="btn-login" id="loginBtn">Login</button>
+        </div>
+
+        <div class="exam-screen" id="examScreen">
+            <div class="timer" id="timer">15:00</div>
+            <div class="question-card">
+                <p id="questionText"></p>
+                <div id="optionsContainer" class="options-container"></div>
+            </div>
+            <div class="navigation-buttons">
+                <button class="btn-skip" id="skipBtn">Skip</button>
+                <button class="btn-next" id="nextBtn">Next</button>
+                <button class="btn-submit" id="submitBtn" style="display: none;">Submit</button>
+            </div>
+        </div>
+
+        <div class="result-screen" id="resultScreen">
+            <h2>Exam Submitted!</h2>
+            <p>Thank you for taking the exam.</p>
+            <div class="result-summary" id="resultSummary"></div>
+            <button class="btn-check-answers" id="checkAnswersBtn">Check Your Answers</button>
+            <div class="answer-key-container" id="answerKeyContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        const FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLScmDQCLj-bSqEdqhlu6apie8_FDe70REeQFXP96QY4bDks9sA/formResponse";
+        
+        // These are the entry IDs from your Google Form URL
+        const entryIds = {
+            name: "entry.805091840",
+            mobile: "entry.2097342315",
+            score: "entry.1839713150",
+            true: "entry.1786197649",
+            false: "entry.806353382",
+            notAttempted: "entry.99641051"
+        };
+        
+        const questions = [
+            { q: "What is the capital of India?", options: ["Mumbai", "Delhi", "Kolkata", "Chennai"], answer: "Delhi" },
+            { q: "Who is known as the 'Father of the Nation' in India?", options: ["Jawaharlal Nehru", "Sardar Patel", "Mahatma Gandhi", "Subhas Chandra Bose"], answer: "Mahatma Gandhi" },
+            { q: "How many states are there in India?", options: ["28", "29", "27", "30"], answer: "28" },
+            { q: "What is the national animal of India?", options: ["Lion", "Tiger", "Elephant", "Peacock"], answer: "Tiger" },
+            { q: "Which is the largest state in India by area?", options: ["Madhya Pradesh", "Maharashtra", "Rajasthan", "Uttar Pradesh"], answer: "Rajasthan" },
+            { q: "Who wrote the Indian national anthem?", options: ["Bankim Chandra Chatterjee", "Rabindranath Tagore", "Sarojini Naidu", "Mahatma Gandhi"], answer: "Rabindranath Tagore" },
+            { q: "What is the currency of Japan?", options: ["Yuan", "Rupee", "Yen", "Dollar"], answer: "Yen" },
+            { q: "What is the largest planet in our solar system?", options: ["Mars", "Saturn", "Jupiter", "Earth"], answer: "Jupiter" },
+            { q: "Which sport is Michael Jordan famous for?", options: ["Soccer", "Baseball", "Basketball", "Tennis"], answer: "Basketball" },
+            { q: "What is the chemical symbol for water?", options: ["O2", "H2O", "CO2", "Nacl"], answer: "H2O" },
+            { q: "Who painted the Mona Lisa?", options: ["Vincent van Gogh", "Leonardo da Vinci", "Pablo Picasso", "Claude Monet"], answer: "Leonardo da Vinci" },
+            { q: "What is the freezing point of water in Celsius?", options: ["100°C", "0°C", "-10°C", "5°C"], answer: "0°C" },
+            { q: "Which country is the Statue of Liberty located in?", options: ["France", "United States", "United Kingdom", "Canada"], answer: "United States" },
+            { q: "What is the largest ocean on Earth?", options: ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean", "Pacific Ocean"], answer: "Pacific Ocean" },
+            { q: "What is the smallest continent?", options: ["Europe", "Australia", "Antarctica", "South America"], answer: "Australia" },
+            { q: "What is the capital of France?", options: ["Rome", "Berlin", "Paris", "Madrid"], answer: "Paris" },
+            { q: "Who was the first man to walk on the moon?", options: ["Yuri Gagarin", "Buzz Aldrin", "Neil Armstrong", "Alan Shepard"], answer: "Neil Armstrong" },
+            { q: "What is the largest bone in the human body?", options: ["Tibia", "Femur", "Humerus", "Patella"], answer: "Femur" },
+            { q: "Which planet is known as the 'Red Planet'?", options: ["Venus", "Mars", "Jupiter", "Mercury"], answer: "Mars" },
+            { q: "What is the main component of the air we breathe?", options: ["Oxygen", "Carbon Dioxide", "Nitrogen", "Hydrogen"], answer: "Nitrogen" }
+        ];
+
+        const loginScreen = document.getElementById('loginScreen');
+        const examScreen = document.getElementById('examScreen');
+        const resultScreen = document.getElementById('resultScreen');
+        const loginBtn = document.getElementById('loginBtn');
+        const nameInput = document.getElementById('nameInput');
+        const mobileInput = document.getElementById('mobileInput');
+        const timerDisplay = document.getElementById('timer');
+        const questionText = document.getElementById('questionText');
+        const optionsContainer = document.getElementById('optionsContainer');
+        const nextBtn = document.getElementById('nextBtn');
+        const skipBtn = document.getElementById('skipBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultSummary = document.getElementById('resultSummary');
+        const checkAnswersBtn = document.getElementById('checkAnswersBtn');
+        const answerKeyContainer = document.getElementById('answerKeyContainer');
+
+        let userName, userMobile, timeLeft = 900;
+        let currentQuestionIndex = 0;
+        let userAnswers = new Array(questions.length).fill(null);
+        let timerInterval;
+
+        loginBtn.addEventListener('click', () => {
+            if (nameInput.value && mobileInput.value.length === 10) {
+                userName = nameInput.value;
+                userMobile = mobileInput.value;
+                loginScreen.style.display = 'none';
+                examScreen.style.display = 'block';
+                startTimer();
+                showQuestion();
+            } else {
+                alert('Please enter a valid name and 10-digit mobile number.');
+            }
+        });
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    submitExam();
+                }
+            }, 1000);
+        }
+
+        function showQuestion() {
+            const questionData = questions[currentQuestionIndex];
+            questionText.textContent = `${currentQuestionIndex + 1}. ${questionData.q}`;
+            optionsContainer.innerHTML = '';
+            questionData.options.forEach(option => {
+                const label = document.createElement('label');
+                const radioInput = document.createElement('input');
+                radioInput.type = 'radio';
+                radioInput.name = `q${currentQuestionIndex}`;
+                radioInput.value = option;
+                radioInput.id = `q${currentQuestionIndex}-${option.replace(/\s+/g, '')}`;
+                radioInput.checked = userAnswers[currentQuestionIndex] === option;
+                
+                label.appendChild(radioInput);
+                label.append(option);
+                optionsContainer.appendChild(label);
+            });
+            
+            optionsContainer.querySelectorAll('input[type="radio"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    userAnswers[currentQuestionIndex] = e.target.value;
+                });
+            });
+
+            if (currentQuestionIndex === questions.length - 1) {
+                nextBtn.style.display = 'none';
+                skipBtn.style.display = 'none';
+                submitBtn.style.display = 'block';
+            } else {
+                nextBtn.style.display = 'block';
+                skipBtn.style.display = 'block';
+                submitBtn.style.display = 'none';
+            }
+        }
+
+        nextBtn.addEventListener('click', () => {
+            currentQuestionIndex++;
+            showQuestion();
+        });
+        
+        skipBtn.addEventListener('click', () => {
+            currentQuestionIndex++;
+            showQuestion();
+        });
+
+        submitBtn.addEventListener('click', submitExam);
+
+        function submitExam() {
+            clearInterval(timerInterval);
+            let correct = 0, incorrect = 0, notAttempted = 0;
+            const answersKey = questions.map(q => q.answer);
+            
+            userAnswers.forEach((userAnswer, index) => {
+                if (userAnswer === null) {
+                    notAttempted++;
+                } else if (userAnswer === answersKey[index]) {
+                    correct++;
+                } else {
+                    incorrect++;
+                }
+            });
+            
+            const totalScore = correct;
+
+            examScreen.style.display = 'none';
+            resultScreen.style.display = 'block';
+            resultSummary.innerHTML = `
+                <p><strong>Name:</strong> ${userName}</p>
+                <p><strong>Score:</strong> ${totalScore} / ${questions.length}</p>
+                <p><strong>Correct:</strong> ${correct}</p>
+                <p><strong>Incorrect:</strong> ${incorrect}</p>
+                <p><strong>Not Attempted:</strong> ${notAttempted}</p>
+            `;
+            
+            const formData = new URLSearchParams();
+            formData.append(entryIds.name, userName);
+            formData.append(entryIds.mobile, userMobile);
+            formData.append(entryIds.score, totalScore);
+            formData.append(entryIds.true, correct);
+            formData.append(entryIds.false, incorrect);
+            formData.append(entryIds.notAttempted, notAttempted);
+
+            fetch(FORM_URL, {
+                method: 'POST',
+                body: formData,
+                mode: 'no-cors'
+            }).then(() => {
+                alert('Test submitted successfully! Your data has been saved.');
+            }).catch(error => {
+                console.error('Error submitting data:', error);
+                alert('An error occurred while submitting the test.');
+            });
+        }
+
+        checkAnswersBtn.addEventListener('click', () => {
+            answerKeyContainer.style.display = 'block';
+            answerKeyContainer.innerHTML = '<h3>Answer Key</h3>';
+            questions.forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.classList.add('question-key');
+                const userAnswer = userAnswers[index];
+                const correctAnswer = q.answer;
+
+                questionDiv.innerHTML = `
+                    <p><strong>Q${index + 1}:</strong> ${q.q}</p>
+                    <p>Your Answer: ${userAnswer || 'Not Attempted'}</p>
+                    <p>Correct Answer: <span class="correct">${correctAnswer}</span></p>
+                `;
+                
+                if (userAnswer && userAnswer !== correctAnswer) {
+                    questionDiv.innerHTML += `<p class="incorrect">Your choice was incorrect.</p>`;
+                }
+
+                answerKeyContainer.appendChild(questionDiv);
+            });
+        });
+    </script>
+</body>
+</html>
